@@ -1,0 +1,8 @@
+src/nav_pcontroller/
+msg/
+msg_gen/
+.genaction
+bin
+build
+lib
+SVN_EXPORT
