@@ -79,18 +79,7 @@ Publishes to (name / type):
 #include <move_base_msgs/MoveBaseAction.h>
 #include <actionlib/server/simple_action_server.h>
 
-#ifdef JLO_BASE_CONTROL
 #include <std_msgs/UInt64.h>
-#include <vision_srvs/srvjlo.h>
-using namespace vision_srvs;
-#define JLO_IDQUERY "idquery"
-#define JLO_FRAMEQUERY "framequery"
-#define JLO_NAMEQUERY "namequery"
-#define JLO_DELETE "del"
-#define JLO_UPDATE "update"
-
-#include <navp_action/nav_actionAction.h>
-#endif
 
 #include "BaseDistance.h"
 
@@ -140,19 +129,6 @@ private:
 
   void parseParams();
 
-#ifdef JLO_BASE_CONTROL
-  bool jlo_enabled_;
-  unsigned long map_jlo_id_;
-  ros::ServiceClient client_;
-  actionlib::SimpleActionServer<navp_action::nav_actionAction> *jlo_actionserver_;
-
-  unsigned long namequery_jlo(std::string name);
-  bool query_jlo(unsigned long id, double &x, double &y, double &theta);
-
-  void newJloActionGoal();
-  void preemptJloActionGoal();
-#endif
-
   actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> move_base_actionserver_;
 
   void newMoveBaseGoal();
@@ -193,22 +169,6 @@ BasePController::BasePController()
   move_base_actionserver_.registerGoalCallback(boost::bind(&BasePController::newMoveBaseGoal, this));
   move_base_actionserver_.registerPreemptCallback(boost::bind(&BasePController::preemptMoveBaseGoal, this));
   
-#ifdef JLO_BASE_CONTROL
-  if(jlo_enabled_)
-  {
-    jlo_actionserver_ = new actionlib::SimpleActionServer<navp_action::nav_actionAction>(n_, "nav_action", false);
-
-    jlo_actionserver_->registerGoalCallback(boost::bind(&BasePController::newJloActionGoal, this));
-    jlo_actionserver_->registerPreemptCallback(boost::bind(&BasePController::preemptJloActionGoal, this));
-
-    ros::service::waitForService("/located_object");
-    client_ = n_.serviceClient<srvjlo>("/located_object", true);
-    map_jlo_id_ = namequery_jlo(global_frame_);
-  }
-  else
-    jlo_actionserver_ = 0;
-#endif
-
   sub_goal_ = n_.subscribe("goal", 1, &BasePController::newGoal, this);
   pub_vel_ =  n_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 
@@ -217,18 +177,10 @@ BasePController::BasePController()
   goal_set_ = false;
 
   move_base_actionserver_.start();
-#ifdef JLO_BASE_CONTROL
-  if (jlo_actionserver_) {
-    jlo_actionserver_->start();
-  }
-#endif
 }
 
 BasePController::~BasePController()
 {
-  #ifdef JLO_BASE_CONTROL
-  delete jlo_actionserver_;
-  #endif
 }
 
 void BasePController::main()
@@ -262,10 +214,6 @@ void BasePController::parseParams()
   n_.param<double>("p", p_, 1.2);
   n_.param<bool>("keep_distance", keep_distance_, true);
 
-#ifdef JLO_BASE_CONTROL
-  n_.param<bool>("enable_jlo", jlo_enabled_, true);
-#endif
-
   n_.param<std::string>("global_frame", global_frame_, "/map");
   n_.param<std::string>("base_link_frame", base_link_frame_, "/base_link");
 
@@ -284,122 +232,8 @@ void BasePController::parseParams()
   dist_control_.setFootprint(front, rear, left, right, tolerance);
 }
 
-#ifdef JLO_BASE_CONTROL
-unsigned long BasePController::namequery_jlo(std::string name)
-{
-  srvjlo msg;
-  msg.request.query.name = name;
-  msg.request.command = JLO_NAMEQUERY;
-
-  if(!client_.isValid())
-  {
-    ros::service::waitForService("/located_object");
-    client_ = n_.serviceClient<srvjlo>("/located_object", true);
-  }
-  if (!client_.call(msg))
-  {
-    printf("Error asking jlo namequery %s!\n", name.c_str());
-    return 1;
-  }
-  else if (msg.response.error.length() > 0)
-  {
-    printf("Error from jlo: %s!\n", msg.response.error.c_str());
-    return 1;
-  }
-  return msg.response.answer.id;
-}
-
-bool BasePController::query_jlo(unsigned long id, double &x, double &y, double &theta)
-{
-  srvjlo msg;
-  msg.request.query.id = id;
-  msg.request.query.parent_id = map_jlo_id_;
-  msg.request.command = JLO_FRAMEQUERY;
-  if(id == 1)
-     msg.request.command = JLO_IDQUERY;
-
-  if(!client_.isValid())
-  {
-    ros::service::waitForService("/located_object");
-    client_ = n_.serviceClient<srvjlo>("/located_object", true);
-  }
-  if (!client_.call(msg))
-  {
-
-    printf("Error from jlo: %s!\n", msg.response.error.c_str());
-    return false;
-  }
-  else if (msg.response.error.length() > 0)
-  {
-    printf("Error from jlo: %s!\n", msg.response.error.c_str());
-    return false;
-  }
-  vision_msgs::partial_lo::_pose_type &vectmp = msg.response.answer.pose;
-  x = vectmp[3];
-  y = vectmp[7];
-  printf("Rotationmatrix\n%f %f %f\n %f %f %f\n %f %f %f\n", vectmp[0],
-  vectmp[1],vectmp[2],
-  vectmp[4],vectmp[5],vectmp[6],
-  vectmp[8],vectmp[9],vectmp[10]);
-
-  theta = atan2(vectmp[4], vectmp[0]);
-
-  printf("=> %f theta\n", theta);
-
-  return true;
-}
-
-void BasePController::newJloActionGoal()
-{
-  if(move_base_actionserver_.isActive())
-    preemptMoveBaseGoal();
-      
-  navp_action::nav_actionGoal::ConstPtr msg = jlo_actionserver_->acceptNewGoal();
-
-  // To be able to reconfigure the base controller on the fly, whe read the parameters whenever we receive a goal
-  parseParams();
-
-  // Jlo might block for quite some time, so we do not want to hold
-  // the lock while calling jlo. Rather, we first store the goal in
-  // temporary variables and copy after the jlo call.
-  double x_goal, y_goal, th_goal;
-  if(query_jlo(msg->target_lo.data, x_goal, y_goal, th_goal))
-  {
-    boost::mutex::scoped_lock curr_lock(lock);
-
-    x_goal_ = x_goal;
-    y_goal_ = y_goal;
-    th_goal_ = th_goal;
-
-    low_speed_time_ = ros::Time::now();
-
-    ROS_INFO("received goal: %f %f %f", x_goal_, y_goal_, th_goal_);
-    goal_set_ = true;
-  }
-  else
-  {
-    ROS_WARN("Jlo query for goal %ld failed.", msg->target_lo.data);
-    jlo_actionserver_->setAborted();
-  }
-}
-
-void BasePController::preemptJloActionGoal()
-{
-  boost::mutex::scoped_lock curr_lock(lock);
-
-  goal_set_ = false;
-  stopRobot();
-  jlo_actionserver_->setPreempted();
-}
-#endif
-
 void BasePController::newMoveBaseGoal()
 {
-  #ifdef JLO_BASE_CONTROL
-  if(jlo_actionserver_ && jlo_actionserver_->isActive())
-    preemptJloActionGoal();
-  #endif
-
   move_base_msgs::MoveBaseGoal::ConstPtr msg = move_base_actionserver_.acceptNewGoal();
 
   // To be able to reconfigure the base controller on the fly, whe read the parameters whenever we receive a goal
@@ -453,10 +287,6 @@ void BasePController::newGoal(const geometry_msgs::PoseStamped &msg)
 
 void BasePController::newGoal(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
-#ifdef JLO_BASE_CONTROL
-  if(jlo_actionserver_ && jlo_actionserver_->isActive())
-    preemptJloActionGoal();
-#endif
   if(move_base_actionserver_.isActive())
     preemptMoveBaseGoal();
 
@@ -540,16 +370,7 @@ void BasePController::cycle()
   sendVelCmd(vx_, vy_, vth_);
 
   if(comparePoses(x_goal_, y_goal_, th_goal_, x_now_, y_now_, th_now_)) {
-#ifdef JLO_BASE_CONTROL
-    if(jlo_actionserver_ && jlo_actionserver_->isActive())
-    {
-      navp_action::nav_actionResult result;
-      result.distance.data = sqrt((x_goal_-x_now_)*(x_goal_-x_now_) + (y_goal_-y_now_)*(y_goal_-y_now_));
-      ROS_INFO("nav_pcontroller: Reached goal %f (%f rot reached %f commanded)\n",
-        result.distance.data, th_now_, th_goal_);
-      jlo_actionserver_->setSucceeded(result);
-    }
-#endif
+    
     if(move_base_actionserver_.isActive())
       move_base_actionserver_.setSucceeded();
     goal_set_ = false;
@@ -565,14 +386,7 @@ void BasePController::cycle()
     {
       goal_set_ = false;
       stopRobot();
-#ifdef JLO_BASE_CONTROL
-      if(jlo_actionserver_ && jlo_actionserver_->isActive())
-      {
-        navp_action::nav_actionResult result;
-        result.distance.data = sqrt((x_goal_-x_now_)*(x_goal_-x_now_) + (y_goal_-y_now_)*(y_goal_-y_now_));
-        jlo_actionserver_->setAborted(result);
-      }
-#endif
+      
       if(move_base_actionserver_.isActive())
         move_base_actionserver_.setAborted();
       return;
@@ -581,15 +395,6 @@ void BasePController::cycle()
   else
     low_speed_time_ = ros::Time::now();
 
-#ifdef JLO_BASE_CONTROL
-  if(jlo_actionserver_ && jlo_actionserver_->isActive())
-  {
-    navp_action::nav_actionFeedback feedback;
-    feedback.speed.data = velocity;
-    feedback.distance.data = sqrt((x_goal_-x_now_)*(x_goal_-x_now_) + (y_goal_-y_now_)*(y_goal_-y_now_));
-    jlo_actionserver_->publishFeedback(feedback);
-  }
-#endif
   if(move_base_actionserver_.isActive())
   {
     move_base_msgs::MoveBaseFeedback feedback;
