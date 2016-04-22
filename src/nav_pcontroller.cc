@@ -237,7 +237,7 @@ void BasePController::newMoveBaseGoal()
   move_base_msgs::MoveBaseGoal::ConstPtr msg = move_base_actionserver_.acceptNewGoal();
 
   // To be able to reconfigure the base controller on the fly, whe read the parameters whenever we receive a goal
-  //parseParams();
+  parseParams(); 
 
   newGoal(msg->target_pose);
   ROS_INFO("received goal: %f %f %f", x_goal_, y_goal_, th_goal_);
@@ -257,7 +257,6 @@ void BasePController::newGoal(const geometry_msgs::PoseStamped &msg)
   boost::mutex::scoped_lock curr_lock(lock);
 
   geometry_msgs::PoseStamped goal;
-
 
   try
   {
