@@ -13,12 +13,21 @@
       repelling_gain: 0.5
       repelling_gain_max: 0.015
 
+      xy_tolerance: 0.03
+      th_tolerance: 0.03
+
       vel_ang_max: 0.6
-      vel_lin_max: 0.1
+      vel_lin_max: 0.3
       acc_ang_max: 0.4
       acc_lin_max: 0.4
+
+      fail_velocity: 0.02
+
       loop_rate: 30
+
       p: 1.2
+
+      keep_distance: true
 
       n_lasers: 1
       complete_blind_spots: false
