@@ -11,6 +11,7 @@ catkin_package(
   CATKIN_DEPENDS roscpp visualization_msgs
 )
 
+include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(${PROJECT_NAME} src/nav_pcontroller.cc src/BaseDistance.cc)
 add_executable(speed_filter src/speed_filter.cc src/BaseDistance.cc)
