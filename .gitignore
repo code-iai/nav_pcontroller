@@ -6,3 +6,4 @@ bin
 build
 lib
 SVN_EXPORT
+CMakeLists.txt.user
