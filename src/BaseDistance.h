@@ -39,11 +39,17 @@
 #include <tf/transform_listener.h>
 #include <sensor_msgs/LaserScan.h>
 
+/**
+ * Utility class for providing functionality such as ...
+ * More details
+ */
+
 class BaseDistance {
 public:
-  // helper class
-  class Vector2
-  {
+  /**
+   * @brief The Vector2 helper class to store 2D coordinates
+   */
+  class Vector2 {
   public:
     double x, y;
     Vector2() {}
@@ -55,67 +61,265 @@ public:
 
   BaseDistance();
 
+  /**
+   * @brief Computes the translation and rotation from one frame to another
+   * @param[in] from The name of the parent frame
+   * @param[in] to The name of the child frame
+   * @param[in] time Timestamp of the transform
+   * @param[out] x X component of translation
+   * @param[out] y Y component of translation
+   * @param[out] th Angle of rotation around the Z axis
+   * @return false if no transform could be looked up
+   */
   bool compute_pose2d(const char* from, const char* to, const ros::Time time, double *x, double *y, double *th);
+
+  /**
+   * @brief Sets front_, rear_, left_, right_, tolerance_, and early_reject_distance_.
+   */
   void setFootprint(double front, double rear, double left, double right, double tolerance);
 
+  /**
+   * @brief Sets safety_dist_, slowdown_near_, slowdown_far_, and d_ = 1 / rate.
+   * \todo rename to use underscores
+   */
   void setSafetyLimits(double safety_dist, double slowdown_near, double slowdown_far, double rate);
 
+  /**
+   * @brief \todo
+   * @param[out] vx
+   * @param[out] vy
+   * @param[out] vth
+   */
   void compute_distance_keeping(double *vx, double *vy, double *vth);
 
+  /**
+   * @brief Calculates the distance to closest of @p points from nearest footprint wall
+   * The distance is calculated not from the current position of @a base_link_frame_,
+   * but the adjusted with @p dx, @p dy and @p dth one, because in the next timestamp
+   * the robot will have moved a little.
+   * @param points Coordinates in @a odom_frame_ (laser data)
+   * @param nearest If nearest is not false, updates it with the closest point
+   * (in adjusted @a base_link_frame_)
+   * @param dx The X component of adjustment vector of robot coordinates
+   * (adjustment vector is defined in @a base_link_frame_)
+   * @param dy The Y component of adjustment vector
+   * @param dth Theta component of adjustment vector
+   * @return Distance to closest of @p points from nearest footprint wall for next time frame
+   */
   double distance(std::vector<Vector2> &points, Vector2 *nearest, double dx=0, double dy=0, double dth=0);
+
 private:
-
-  Vector2 transform(const Vector2 &v, double x, double y, double th);
-
-  double brake(std::vector<Vector2> &points, double *vx, double *vy, double *vth);
-  double grad(std::vector<Vector2> &points, double *gx, double *gy, double *gth);
-  double project(std::vector<Vector2> &points, double *vx, double *vy, double *vth);
-
+  /**
+   * @brief marker_size_ When publishing points to RViz, in meters
+   */
   double marker_size_;
+
+  /**
+   * @brief early_reject_distance_ From how many meters to discard laser measurements.
+   * Laser is used to avoid obstacles, so if the obstacles are far away
+   * they're not relevant for the time being.
+   */
   double early_reject_distance_;
+
+  /**
+   * @brief Footprint of the robot, coordinates of front edge, back edge, etc.
+   * in the footprint coordinate system.
+   * E.g. front = 0.33, rear = -0.33, left = 0.33, right = -0.33
+   */
   double front_, rear_, left_, right_;
+
+  /**
+   * @brief tolerance_ Error in the footprint measurements in meters.
+   */
   double tolerance_;
-  double d_, safety_dist_, slowdown_near_, slowdown_far_, repelling_dist_, repelling_gain_, repelling_gain_max_;
+
+  /**
+   * @brief d_ duration of one time frame, i.e. dt or Tdot
+   */
+  double d_;
+
+  /**
+   * @brief safety_dist_ Distance in meters when to start braking when moving with current velocity.
+   */
+  double safety_dist_;
+
+  /**
+   * @brief slowdown_near_ Distance from footprint edges to closest obstacle point from when to brake
+   * really aggressively
+   */
+  double slowdown_near_;
+
+  /**
+   * @brief slowdown_near_ Distance from footprint edges to closest obstacle point from when to start braking
+   */
+  double slowdown_far_;
+
+  /**
+   * @brief repelling_dist_ Distance from footprint edges to closest obstacle point from when to start backing up
+   */
+  double repelling_dist_, repelling_gain_, repelling_gain_max_;
 
   std::string odom_frame_, base_link_frame_;
+
+  /**
+   * @brief n_lasers_ Number of laser scanners that create the base scan.
+   * Note: @a laser_points_ is of size 2, so currently only up to 2 lasers supported.
+   */
   int n_lasers_;
+
+  /**
+   * @brief complete_blind_spots_ If the laser/s have blind spots, wheter to complete them.
+   * The completion will be through interpolation.
+   */
   bool complete_blind_spots_;
+
+  /**
+   * @brief blind_spot_threshold_ Distance from base_link_frame to the end of a blind spot.
+   * Non-parallel lines always meet somewhere, so the blind spot is a triangle.
+   * If the obstacles are further away than the triangle, means they are
+   * outside of the blind spot, so there is no need to triangulate.
+   */
   double blind_spot_threshold_;
 
   ros::NodeHandle n_;
 
+  /**
+   * @brief blind_spots_ A vector of interpolated coordinates for the blind spots
+   * Defined in the @a odom_frame_
+   */
   std::vector<Vector2> blind_spots_;
+
+  /**
+   * @brief laser_points_ Data from lasers filtered and converted into the odom frame.
+   * The size is 2 for 2 lasers, i.e. supports up to 2 lasers only.
+   */
   boost::shared_ptr<std::vector<Vector2> > laser_points_[2];
 
   //boost::shared_ptr<std::vector<Vector2> > current_points_;  //!< should replace the points argument of distance(), project(), grad() and brake().
+  /**
+   * @brief rob_x_, rob_y_, rob_th_ Pose of the @a base_link_frame_ in @a odom_frame_
+   */
   double rob_x_, rob_y_, rob_th_;
   double vx_last_, vy_last_, vth_last_;
+
+  /**
+   * @brief nearest_ The nearest point to the base
+   */
   Vector2 nearest_;
+
+  /**
+   * @brief mode_ Defined the movement mode for the base.
+   * Can be one of the modes defined in the cpp file:
+   * MODE_FREE - move freely,
+   * MODE_PROJECTING - slow down slowly,
+   * MODE_HARD_PROJECTING - slow down faster,
+   * MODE_BRAKING - brake right now, command 0 velocity,
+   * MODE_REPELLING - move away from obstacle.
+   */
   int mode_;
 
   ros::Subscriber laser_subscriptions_[2];
-  
+
   ros::Publisher marker_pub_;
   ros::Publisher laser_points_pub_;
   ros::Publisher debug_pub_;
   tf::TransformListener tf_;
-  
+
   //double reading_blind_front_, reading_blind_left_, reading_blind_right_, reading_blind_rear_;
   //double laser_x_front_, laser_y_front_, laser_x_rear_, laser_y_rear_;
 
   boost::mutex lock;
 
   /**
-   * Interpolates n points between pt1 and pt2 and adds them to
-   * blind_spots_
+   * @brief Applies ridig transformation to the input vector, i.e. rotation and translation
+   * I.e. @p gets transformed into a coordinate system defined by @p x, @p y and @p th
+   * @param v Input vector
+   * @param x x component of the translation vector
+   * @param y y component of the translation vector
+   * @param th Angle of rotation
+   * @return Transformed vector v' = Rv + t
+   */
+  Vector2 transform(const Vector2 &v, double x, double y, double th);
+
+  /**
+   * @brief If distance to closest point when moving with given velocity is short, brake.
+   * Given velocity here is given through @p vx, @p vy and @p vth.
+   * Short means smaller than @a safety_dist_.
+   * Adjusts @a mode_
+   * @param points Laser data in @a odom_frame_
+   * @param[in,out] vx Current velocity of the robot from which to start braking when obstacle is close
+   * @param[in,out] vy Y component
+   * @param[in,out] vth Theta component
+   * @return Distance to closes obstacle point from robot pose in next time frame with velocity @p vx
+   */
+  double brake(std::vector<Vector2> &points, double *vx, double *vy, double *vth);
+
+  /**
+   * @brief Calculates the gradient of the distance to the closes point of @p points
+   * Is it increasing? Is it decreasing? How fast?
+   * @param points
+   * @param gx X component of gradient
+   * @param gy Y component of gradient
+   * @param gth Distance gradient in robot's angular velocity
+   * @return Distance to closest point from robot footprint walls in current robot pose
+   */
+  double grad(std::vector<Vector2> &points, double *gx, double *gy, double *gth);
+
+  /**
+   * @brief Adapts the velocity given in parameters to slow down or back up
+   * Adjusts @a mode_, @p vx, @p vy and @p vth
+   * @param points Points from the laser in @a odom_frame_
+   * @param[in,out] vx Current velocity in X
+   * @param[in,out] vy Current velocity in Y
+   * @param[in,out] vth Current velocity in Theta
+   * @return Distance to closest point from robot footprint walls in current robot pose
+   */
+  double project(std::vector<Vector2> &points, double *vx, double *vy, double *vth);
+
+  /**
+   * @brief Interpolates @p n points between @p pt1 and @p pt2 and adds them to @a blind_spots_
+   * Interpolation is linear and component-wise: separately on X and Y coordinates
+   * @p pt1 and @p pt2 are defined in @a odom_frame_
+   * @return true if @a blind_spots_ was updated
    */
   bool interpolateBlindPoints(int n, const Vector2 &pt1, const Vector2 &pt2);
+
+  /**
+   * @brief laserCallback Sets the @a laser_points_ to filtered data from lasers in the odom frame.
+   * Completes blind spots if @a complete_blind_spots is set to true.
+   * @param index For when there are multiple lasers on the base, to index over them
+   * @param scan Input ROS message from the laser with index @p index
+   */
   void laserCallback(int index, const sensor_msgs::LaserScan::ConstPtr& scan);
+
+  /**
+   * @brief Publishes a red cube at the coordinates of @p pt using @a marker_pub_
+   * @param pt Point in odom_frame_
+   */
   void publishLaserMarker(const Vector2 &pt, const std::string &ns, int id=0);
+
+  /**
+   * @brief Publishes @a nearest_ as a cube or a sphere of corresponding color
+   * @a nearest_ is defined in base_link_frame_
+   */
   void publishNearestPoint();
+
+  /**
+   * @brief Publishes a purple cube at the position of the robot in odom_frame_
+   * The size of the cube is the size of the footprint given through @a front_ etc.
+   */
   void publishBaseMarker();
+
+  /**
+   * @brief Publishes coordinates in @p points as a point cloud
+   * Uses @a laser_points_pub_ to publish
+   * @param points Coordinates in @a odom_frame_
+   */
   void publishPoints(const std::vector<Vector2> &points);
 
+  /**
+   * @brief early_reject_distance_ = diameter + slowdown_far_ + tolerance_ + movement_tolerance;
+   */
   void calculateEarlyRejectDistance();
 
   //void swap_point_buffers();

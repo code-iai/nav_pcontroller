@@ -68,7 +68,7 @@
 
 #if !ROS_VERSION_MINIMUM(1, 8, 0)
 namespace tf {
-  typedef btMatrix3x3 Matrix3x3;
+typedef btMatrix3x3 Matrix3x3;
 }
 #endif
 
@@ -104,10 +104,10 @@ BaseDistance::BaseDistance()
   debug_pub_ = n_.advertise<std_msgs::Float64MultiArray>("debug_channels", 0);
 
   laser_subscriptions_[0] = n_.subscribe<sensor_msgs::LaserScan>
-    ("laser_1", 2, boost::bind(&BaseDistance::laserCallback, this, 0, _1));
+      ("laser_1", 2, boost::bind(&BaseDistance::laserCallback, this, 0, _1));
   if(n_lasers_ > 1)
     laser_subscriptions_[1] = n_.subscribe<sensor_msgs::LaserScan>
-      ("laser_2", 2, boost::bind(&BaseDistance::laserCallback, this, 1, _1));
+        ("laser_2", 2, boost::bind(&BaseDistance::laserCallback, this, 1, _1));
 
   calculateEarlyRejectDistance();
 }
@@ -136,8 +136,10 @@ void BaseDistance::setFootprint(double front, double rear, double left, double r
 
 void BaseDistance::calculateEarlyRejectDistance()
 {
+  // tolerance in localization in meters, i.e. error due to movement?
   double movement_tolerance = 0.2;
-  double diameter = sqrt((front_ - rear_)*(front_ - rear_) + (right_ - left_)*(right_ - left_));
+  // diameter is the length of the diagonal of the footprint square
+  double diameter = sqrt((front_ - rear_) * (front_ - rear_) + (right_ - left_) * (right_ - left_));
   early_reject_distance_ = diameter + slowdown_far_ + tolerance_ + movement_tolerance;
 }
 
@@ -166,10 +168,12 @@ bool BaseDistance::compute_pose2d(const char* from, const char* to, const ros::T
 
 void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstPtr &scan)
 {
+  // distance points from the laser, variable to store processed points
   boost::shared_ptr<std::vector<Vector2> > points(new std::vector<Vector2>);
 
   points->reserve(scan->ranges.size());
 
+  // compute pose of laser in the odom frame
   double x, y, th;
   compute_pose2d(odom_frame_.c_str(), scan->header.frame_id.c_str(), ros::Time(0), &x, &y, &th);
 
@@ -177,20 +181,22 @@ void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstP
   int i, first_scan = 0, last_scan = 0;
 
   // find last valid scan range
-  for(int i=scan->ranges.size()-1; i >= 0; i--)
+  // last_scan will be the index of the last valid scan point
+  // (usually the scanner has a bit less than 270 deg range,
+  //  so a couple of first and last points in the result are invalid values)
+  for(int i = scan->ranges.size() - 1; i >= 0; i--)
   {
-    if(!(scan->ranges[i] <= scan->range_min ||
-       scan->ranges[i] >= scan->range_max))
+    if(scan->ranges[i] > scan->range_min &&
+       scan->ranges[i] < scan->range_max)
     {
       last_scan = i;
       break;
     }
   }
 
-
-  for(angle=scan->angle_min, i=0;
+  for(angle = scan->angle_min, i = 0;
       i < (int) scan->ranges.size();
-      i++, angle+=scan->angle_increment)
+      i++, angle += scan->angle_increment)
   {
     // reject invalid ranges
     if(scan->ranges[i] <= scan->range_min ||
@@ -206,14 +212,20 @@ void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstP
 
     first_scan = -1;
 
+    // transforms the points from the laser frame into the odom frame
     double xl = scan->ranges[i] * cos(angle);
     double yl = scan->ranges[i] * sin(angle);
     points->push_back(transform(Vector2(xl, yl), x, y, th));
   }
 
-  boost::mutex::scoped_lock mutex(lock);
+  // boost::mutex::scoped_lock mutex(lock);
+  // Commented out the mutex because it was unused.
+  // There are callbacks from both lasers in parallel, each populates one element
+  // of the size = 2 array laser_points_, which is thread safe.
   laser_points_[index] = points;
 
+  // Fills in the 2 blind spots that happen when there are 2 lasers that don't
+  // completely overlap. Also publishes the resulting filling as markers
   if(complete_blind_spots_ && laser_points_[0] && laser_points_[1])
   {
     blind_spots_.clear();
@@ -235,17 +247,20 @@ void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstP
 
 bool BaseDistance::interpolateBlindPoints(int n, const Vector2 &pt1, const Vector2 &pt2)
 {
+  // two points in base_link_frame_
   Vector2 p1_rob = transform(pt1, rob_x_, rob_y_, rob_th_);
   Vector2 p2_rob = transform(pt2, rob_x_, rob_y_, rob_th_);
 
-  if( p1_rob.len2() < blind_spot_threshold_ * blind_spot_threshold_ ||
-      p2_rob.len2() < blind_spot_threshold_ * blind_spot_threshold_)
+  // if p1 or p2 are closer to the robot than a threshold
+  if(p1_rob.len2() < blind_spot_threshold_ * blind_spot_threshold_ ||
+     p2_rob.len2() < blind_spot_threshold_ * blind_spot_threshold_)
   {
-    for(int i=0; i < n; i++)
+    for(int i = 0; i < n; i++)
     {
-      double t = (i/(n-1.0));
-      blind_spots_.push_back(Vector2(t*pt1.x + (1.0-t)*pt2.x,
-                                     t*pt1.y + (1.0-t)*pt2.y));
+      // linear interpolation on x and y separately
+      double t = (i / (n - 1.0));
+      blind_spots_.push_back(Vector2(t * pt1.x + (1.0 - t) * pt2.x,
+                                     t * pt1.y + (1.0 - t) * pt2.y));
     }
     return true;
   }
@@ -291,8 +306,7 @@ void BaseDistance::publishNearestPoint()
   marker.header.stamp = ros::Time::now();
   marker.ns = "nearest_point";
   marker.id = 0;
-   marker.type = visualization_msgs::Marker::CUBE;
-
+  //marker.type = visualization_msgs::Marker::CUBE;
   if(mode_ & MODE_REPELLING)
     marker.type = visualization_msgs::Marker::SPHERE;
   else
@@ -312,22 +326,22 @@ void BaseDistance::publishNearestPoint()
 
   switch(mode_ & MODE_PROJECTION_MASK)
   {
-    case(MODE_FREE):
-      marker.color.r = 0.0f;
-      marker.color.g = 1.0f;
-      break;
-    case(MODE_PROJECTING):
-      marker.color.r = 0.0f;
-      marker.color.g = 1.0f;
-      break;
-    case(MODE_HARD_PROJECTING):
-      marker.color.r = 1.0f;
-      marker.color.g = 0.5f;
-      break;
-    case(MODE_BRAKING):
-      marker.color.r = 1.0f;
-      marker.color.g = 0.0f;
-      break;
+  case(MODE_FREE):
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    break;
+  case(MODE_PROJECTING):
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    break;
+  case(MODE_HARD_PROJECTING):
+    marker.color.r = 1.0f;
+    marker.color.g = 0.5f;
+    break;
+  case(MODE_BRAKING):
+    marker.color.r = 1.0f;
+    marker.color.g = 0.0f;
+    break;
   }
   marker.color.b = 0.0f;
   marker.color.a = 1.0;
@@ -404,11 +418,17 @@ double BaseDistance::grad(std::vector<Vector2> &points, double *gx, double *gy, 
 
   double d0, dx_p, dy_p, dth_p, dx_n, dy_n, dth_n;
 
+  // for very small distances angular velocity of radians per second can be
+  // considered as meters per second? sinX = X for dt -> 0? no idea what's going on here
   double v_len = sqrt(vx_last_*vx_last_ + vy_last_*vy_last_ + vth_last_*vth_last_);
+
+  // dd -> distance traveled in one time frame d_ with current velocity
   double dd = CLAMP(v_len*d_*2, 0.005, 0.15);
 
+  // distance to nearest point from current robot pose
   d0   = distance(points, &nearest_, 0, 0, 0);
 
+  // distance to nearest point from robot pose if robot moved +/- dd in X, Y or Theta in @a d_
   dx_p  = distance(points, 0,  dd,  0,  0);
   dx_n  = distance(points, 0, -dd,  0,  0);
 
@@ -482,7 +502,7 @@ double BaseDistance::brake(std::vector<Vector2> &points, double *vx, double *vy,
 
 double BaseDistance::project(std::vector<Vector2> &points, double *vx, double *vy, double *vth)
 {
-  double d, gx, gy, gth, factor=0;
+  double d, gx, gy, gth, factor = 0;
   d = grad(points, &gx, &gy, &gth);
 
   // normalize gradient
@@ -516,8 +536,8 @@ double BaseDistance::project(std::vector<Vector2> &points, double *vx, double *v
     mode_ |= MODE_REPELLING;
     double l_grad_2d = 1/sqrt(gx*gx + gy*gy);
     double a = (1.0/d - 1.0/repelling_dist_)
-             * (1.0/d - 1.0/repelling_dist_)
-             * 0.5 * repelling_gain_;
+        * (1.0/d - 1.0/repelling_dist_)
+        * 0.5 * repelling_gain_;
 
     if(a > repelling_gain_max_)
       a = repelling_gain_max_;
@@ -534,11 +554,12 @@ void BaseDistance::compute_distance_keeping(double *vx, double *vy, double *vth)
   // compute last known robot position in odom frame
   compute_pose2d(base_link_frame_.c_str(), odom_frame_.c_str(), ros::Time(0), &rob_x_, &rob_y_, &rob_th_);
 
-  // collect all relevant obstacle points
+  // collect all relevant obstacle points: from both lasers and blind spots, if given
   std::vector<Vector2> current_points;
 
   {
-    boost::mutex::scoped_lock current_lock(lock);
+    // boost::mutex::scoped_lock current_lock(lock);
+    // No need for mutexes as the laser points are a C array
 
     current_points.reserve((laser_points_[0] ? laser_points_[0]->size() : 0) +
                            (laser_points_[1] ? laser_points_[1]->size() : 0) +
@@ -547,12 +568,12 @@ void BaseDistance::compute_distance_keeping(double *vx, double *vy, double *vth)
     if(laser_points_[0])
     {
       std::copy(laser_points_[0]->begin(), laser_points_[0]->end(),
-                std::back_insert_iterator<std::vector<Vector2> >(current_points));
+          std::back_insert_iterator<std::vector<Vector2> >(current_points));
     }
     if(laser_points_[1])
     {
       std::copy(laser_points_[1]->begin(), laser_points_[1]->end(),
-                std::back_insert_iterator<std::vector<Vector2> >(current_points));
+          std::back_insert_iterator<std::vector<Vector2> >(current_points));
     }
     std::copy(blind_spots_.begin(), blind_spots_.end(),
               std::back_insert_iterator<std::vector<Vector2> >(current_points));
@@ -560,10 +581,10 @@ void BaseDistance::compute_distance_keeping(double *vx, double *vy, double *vth)
 
   mode_ = MODE_FREE;
 
-  // modify velocity vector vector
+  // modify velocity vector (if too close it will start braking or backing up)
   project(current_points, vx, vy, vth);
 
-  // if necessary, do braking
+  // if necessary, do braking (also adjusts the velocity and mode_)
   brake(current_points, vx, vy, vth);
 
   vx_last_ = *vx;
@@ -590,7 +611,7 @@ double BaseDistance::distance(std::vector<Vector2> &points, Vector2 *nearest, do
   if(points.size() == 0)
     ROS_WARN("No points received. Maybe the laser topic is wrong?");
 
-  // transform from odom to base_link
+  // transformation matrix to convert points from odom_frame_ to base_link_frame_
   tf::Matrix3x3 rob(cos(rob_th_), -sin(rob_th_), rob_x_,
                     sin(rob_th_),  cos(rob_th_), rob_y_,
                     0,             0,            1);
@@ -603,16 +624,26 @@ double BaseDistance::distance(std::vector<Vector2> &points, Vector2 *nearest, do
   // create transformation matrix
   tf::Matrix3x3 m = adj*rob;
 
+  // The area around the robot is divided into areas, in front, on the left, left-front, etc.
+  // For each point in points, calculate ldist as the distance on a straight line (FRONT, LEFT, etc.)
+  // and rqdist as the distance^2 diagonally (LEFT and REAR, etc.)
+  // The loop calculates the minimum of all ldist into ldistance, the corresponding
+  // point is saved into lnearest, and of all rqdist the minimum is rqdistance with rnearest.
   for(unsigned int i=0; i < points.size(); i++) {
-    double px = points[i].x*m[0][0] + points[i].y*m[0][1] + m[0][2];
-    double py = points[i].x*m[1][0] + points[i].y*m[1][1] + m[1][2];
+    // laser point in base_link_frame_ with some adjustment
+    double px = points[i].x * m[0][0] + points[i].y * m[0][1] + m[0][2];
+    double py = points[i].x * m[1][0] + points[i].y * m[1][1] + m[1][2];
 
+    // perpendicular distance from the laser point to the four wall of base footprint
     double dright = -py + right_;
     double dleft  =  py - left_;
     double drear  = -px + rear_;
     double dfront =  px - front_;
 
-    int area=0;
+    // area is a 4-bit mask that defines on which of 4 sides of the base the point is
+    // there are, basically, 8 areas surrounding the robot that the point can be in
+    int area = 0;
+    // distance + tolerance > 0, if distance = -1, tolerance = 2, the sum > 0
     area |= RIGHT * (dright > -tolerance_);
     area |= LEFT  * (dleft  > -tolerance_);
     area |= REAR  * (drear  > -tolerance_);
@@ -644,19 +675,15 @@ double BaseDistance::distance(std::vector<Vector2> &points, Vector2 *nearest, do
     }
   }
 
-
+  // return the point that is the closes to the edges, either diagonally or straigh
   double rdistance = sqrt(rqdistance);
   if(rdistance < ldistance) {
-
     //ROS_DEBUG("area=%d\n", rarea);
-
     if(nearest)
       *nearest = rnearest;
     return rdistance;
   } else {
-
     //ROS_DEBUG("area=%d\n", larea);
-
     if(nearest)
       *nearest = lnearest;
     return ldistance;
