@@ -45,6 +45,8 @@ Actionlib (name / type):
 - @b "~move_base/goal" move_base_msgs/MoveBaseActionGoal : similar to the move_base interface
 
 @section parameters ROS parameters
+  - @b "global_frame" (string) : global map frame, default: "map"
+  - @b "base_link_frame" (string) : base frame, default: "base_link"
   - @b "xy_tolerance" (double) : Goal distance tolerance (how close the robot must be to the goal before stopping), default: 0.05 m
   - @b "th_tolerance" (double) : Goal rotation tolerance (how close the robot must be to the goal before stopping), default: 0.05 rad
   - @b "vel_lin_max" (double) : maximum linear velocity, default: 0.2 m/s
@@ -53,6 +55,7 @@ Actionlib (name / type):
   - @b "acc_ang_max" (double) : maximum angular acceleration, default: 0.1 rad/s^2
   - @b "loop_rate" (int) : rate at which the control loop runs, default: 30 s^-1
   - @b "p" (double) : P controller value, default: 1.0
+  - @b "keep_distance" (bool) : use BaseDistance to avoid obstacles or not, default: true
 
 */
 
