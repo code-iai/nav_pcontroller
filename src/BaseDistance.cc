@@ -47,15 +47,16 @@
 
 #include "BaseDistance.h"
 
-/* \todo: avoid unnecessary computation
-
-  write standalone laser_bumper
-
-  integrate
-  test
-  debug print about activity
-
-  there are a lot of 'new' statements. -> performance problem?
+/**
+ * @todo: avoid unnecessary computation
+ *
+ * write standalone laser_bumper
+ *
+ * integrate
+ * test
+ * debug print about activity
+ *
+ * there are a lot of 'new' statements. -> performance problem?
 */
 
 
@@ -113,11 +114,13 @@ BaseDistance::BaseDistance()
 }
 
 
-
-BaseDistance::Vector2 BaseDistance::transform(const Vector2 &v, double x, double y, double th)
+void BaseDistance::calculateEarlyRejectDistance()
 {
-  return Vector2(v.x*cos(th) - v.y*sin(th) + x,
-                 v.x*sin(th) + v.y*cos(th) + y);
+  // tolerance in localization in meters, i.e. error due to movement?
+  double movement_tolerance = 0.2;
+  // diameter is the length of the diagonal of the footprint square
+  double diameter = sqrt((front_ - rear_) * (front_ - rear_) + (right_ - left_) * (right_ - left_));
+  early_reject_distance_ = diameter + slowdown_far_ + tolerance_ + movement_tolerance;
 }
 
 
@@ -134,13 +137,20 @@ void BaseDistance::setFootprint(double front, double rear, double left, double r
   calculateEarlyRejectDistance();
 }
 
-void BaseDistance::calculateEarlyRejectDistance()
+
+void BaseDistance::setSafetyLimits(double safety_dist, double slowdown_near, double slowdown_far, double rate)
 {
-  // tolerance in localization in meters, i.e. error due to movement?
-  double movement_tolerance = 0.2;
-  // diameter is the length of the diagonal of the footprint square
-  double diameter = sqrt((front_ - rear_) * (front_ - rear_) + (right_ - left_) * (right_ - left_));
-  early_reject_distance_ = diameter + slowdown_far_ + tolerance_ + movement_tolerance;
+  d_ = 1.0 / rate;
+  safety_dist_ = safety_dist;
+  slowdown_near_ = slowdown_near;
+  slowdown_far_ = slowdown_far;
+}
+
+
+BaseDistance::Vector2 BaseDistance::transform(const Vector2 &v, double x, double y, double th)
+{
+  return Vector2(v.x*cos(th) - v.y*sin(th) + x,
+                 v.x*sin(th) + v.y*cos(th) + y);
 }
 
 
@@ -165,6 +175,7 @@ bool BaseDistance::compute_pose2d(const char* from, const char* to, const ros::T
 
   return true;
 }
+
 
 void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstPtr &scan)
 {
@@ -245,6 +256,7 @@ void BaseDistance::laserCallback(int index, const sensor_msgs::LaserScan::ConstP
   }
 }
 
+
 bool BaseDistance::interpolateBlindPoints(int n, const Vector2 &pt1, const Vector2 &pt2)
 {
   // two points in base_link_frame_
@@ -270,331 +282,6 @@ bool BaseDistance::interpolateBlindPoints(int n, const Vector2 &pt1, const Vecto
   }
 }
 
-void BaseDistance::publishLaserMarker(const Vector2 &pt, const std::string &ns, int id)
-{
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = odom_frame_;
-  marker.header.stamp = ros::Time::now();
-  marker.ns = ns;
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.pose.position.z = 0.55;
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
-  marker.scale.x = marker_size_;
-  marker.scale.y = marker_size_;
-  marker.scale.z = marker_size_;
-  marker.color.r = 1;
-  marker.color.g = 0;
-  marker.color.b = 0;
-  marker.color.a = 1.0;
-  marker.lifetime = ros::Duration(0.2);
-  marker.id = id;
-  marker.pose.position.x = pt.x;
-  marker.pose.position.y = pt.y;
-  marker.pose.orientation.w = 1.0;
-  marker_pub_.publish(marker);
-}
-
-void BaseDistance::publishNearestPoint()
-{
-  // visualize closest point
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = base_link_frame_;
-  marker.header.stamp = ros::Time::now();
-  marker.ns = "nearest_point";
-  marker.id = 0;
-  //marker.type = visualization_msgs::Marker::CUBE;
-  if(mode_ & MODE_REPELLING)
-    marker.type = visualization_msgs::Marker::SPHERE;
-  else
-    marker.type = visualization_msgs::Marker::CUBE;
-
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.pose.position.x = nearest_.x;
-  marker.pose.position.y = nearest_.y;
-  marker.pose.position.z = 0.55;
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
-  marker.scale.x = marker_size_*2;
-  marker.scale.y = marker_size_*2;
-  marker.scale.z = marker_size_*2;
-
-  switch(mode_ & MODE_PROJECTION_MASK)
-  {
-  case(MODE_FREE):
-    marker.color.r = 0.0f;
-    marker.color.g = 1.0f;
-    break;
-  case(MODE_PROJECTING):
-    marker.color.r = 0.0f;
-    marker.color.g = 1.0f;
-    break;
-  case(MODE_HARD_PROJECTING):
-    marker.color.r = 1.0f;
-    marker.color.g = 0.5f;
-    break;
-  case(MODE_BRAKING):
-    marker.color.r = 1.0f;
-    marker.color.g = 0.0f;
-    break;
-  }
-  marker.color.b = 0.0f;
-  marker.color.a = 1.0;
-
-  marker.lifetime = ros::Duration(0.1);
-  marker_pub_.publish(marker);
-}
-
-void BaseDistance::publishBaseMarker()
-{
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = base_link_frame_;
-  marker.header.stamp = ros::Time::now();
-  marker.ns = "base_footprint";
-  marker.id = 0;
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.pose.position.x = (front_ + rear_) * 0.5;
-  marker.pose.position.y = (right_ + left_) * 0.5;
-  marker.pose.position.z = 0.3;
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
-  marker.scale.x = front_ - rear_;
-  marker.scale.y = right_ - left_;
-  marker.scale.z = 0.6;
-  marker.color.r = 0.5f;
-  marker.color.g = 0.5f;
-  marker.color.b = 1.0f;
-  marker.color.a = 0.5;
-  marker.lifetime = ros::Duration();
-  marker_pub_.publish(marker);
-}
-
-void BaseDistance::publishPoints(const std::vector<Vector2> &points)
-{
-  sensor_msgs::PointCloud cloud;
-
-  cloud.points.resize(points.size());
-
-  std::vector<Vector2>::const_iterator src_it;
-  sensor_msgs::PointCloud::_points_type::iterator dest_it;
-
-  cloud.header.stamp = ros::Time::now();
-  cloud.header.frame_id = odom_frame_;
-  for(src_it=points.begin(), dest_it=cloud.points.begin();
-      src_it != points.end();
-      src_it++, dest_it++)
-  {
-    dest_it->x = src_it->x;
-    dest_it->y = src_it->y;
-    dest_it->z = 0.3;
-  }
-
-  // add one dummy point to clear the display
-  if(points.size() == 0)
-  {
-    cloud.points.resize(1);
-    cloud.points[0].x = 0.0;
-    cloud.points[0].y = 0.0;
-    cloud.points[0].z = 0.0;
-  }
-
-  laser_points_pub_.publish(cloud);
-}
-
-#define CLAMP(x, min, max) (x < min) ? min : ((x > max) ? max : x)
-
-double BaseDistance::grad(std::vector<Vector2> &points, double *gx, double *gy, double *gth)
-{
-  if(!gx || !gy || !gth)
-    return 0;
-
-  double d0, dx_p, dy_p, dth_p, dx_n, dy_n, dth_n;
-
-  // for very small distances angular velocity of radians per second can be
-  // considered as meters per second? sinX = X for dt -> 0? no idea what's going on here
-  double v_len = sqrt(vx_last_*vx_last_ + vy_last_*vy_last_ + vth_last_*vth_last_);
-
-  // dd -> distance traveled in one time frame d_ with current velocity
-  double dd = CLAMP(v_len*d_*2, 0.005, 0.15);
-
-  // distance to nearest point from current robot pose
-  d0   = distance(points, &nearest_, 0, 0, 0);
-
-  // distance to nearest point from robot pose if robot moved +/- dd in X, Y or Theta in @a d_
-  dx_p  = distance(points, 0,  dd,  0,  0);
-  dx_n  = distance(points, 0, -dd,  0,  0);
-
-  dy_p  = distance(points, 0,  0,  dd,  0);
-  dy_n  = distance(points, 0,  0, -dd,  0);
-
-  dth_p = distance(points, 0,  0,  0,  dd);
-  dth_n = distance(points, 0,  0,  0, -dd);
-
-  *gx  = (dx_p  - dx_n)  / (2.0 * dd);
-  *gy  = (dy_p  - dy_n)  / (2.0 * dd);
-  *gth = (dth_p - dth_n) / (2.0 * dd);
-
-  // compute second derivatives for finding saddle points
-  double g2x = (dx_p  + dx_n - 2*d0) / (dd*dd);
-  double g2y = (dy_p  + dy_n - 2*d0) / (dd*dd);
-  double g2th = (dth_p  + dth_n - 2*d0) / (dd*dd);
-
-  //ROS_DEBUG("ddx=%f, ddy=%f, ddth=%f\n", ddx, ddy, ddth);
-  //ROS_DEBUG("gx: %f (+- %f)  gy: %f (+-%f)  gth: %f (+- %f)\n", *gx, g2x, *gy, g2y, *gth, g2th);
-
-  // "dampen" if second derivative is big
-  double g2_scaledown = 2.0;
-  double gx_damp = (fabs(g2x) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2x);
-  double gy_damp = (fabs(g2y) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2y);
-  double gth_damp = (fabs(g2th) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2th);
-
-  *gx = *gx * gx_damp;
-  *gy = *gy * gy_damp;
-  *gth = *gth * gth_damp;
-
-  std_msgs::Float64MultiArray msg;
-  msg.data.resize(7);
-  msg.data[0] = dd;
-
-  msg.data[1] = *gx;
-  msg.data[2] = *gy;
-  msg.data[3] = *gth;
-
-  msg.data[4] = g2x;
-  msg.data[5] = g2y;
-  msg.data[6] = g2th;
-
-  debug_pub_.publish(msg);
-
-  return d0;
-}
-
-
-void BaseDistance::setSafetyLimits(double safety_dist, double slowdown_near, double slowdown_far, double rate)
-{
-  d_ = 1.0 / rate;
-  safety_dist_ = safety_dist;
-  slowdown_near_ = slowdown_near;
-  slowdown_far_ = slowdown_far;
-}
-
-
-double BaseDistance::brake(std::vector<Vector2> &points, double *vx, double *vy, double *vth)
-{
-  double factor = 1.5;
-  double d = distance(points, 0, -*vx*d_*factor, -*vy*d_*factor, -*vth*d_*factor);
-  if(d < safety_dist_) { // if we are stuck in the NEXT timestep...
-    mode_ |= MODE_BRAKING;
-    *vx = 0.0;
-    *vy = 0.0;
-    *vth = 0.0;
-  }
-  return d;
-}
-
-double BaseDistance::project(std::vector<Vector2> &points, double *vx, double *vy, double *vth)
-{
-  double d, gx, gy, gth, factor = 0;
-  d = grad(points, &gx, &gy, &gth);
-
-  // normalize gradient
-  double l_grad = 1/sqrt(gx*gx + gy*gy + gth*gth);
-  gx*=l_grad;
-  gy*=l_grad;
-  gth*=l_grad;
-
-  if(d < slowdown_far_) {
-    // project (vx,vy,vth) onto (gx,gy,gth)
-    double dp = *vx*gx + *vy*gy + *vth*gth;
-    if(dp > 0) { // we are moving towards the obstacle
-      if(d < slowdown_near_)
-      {
-        mode_ |= MODE_HARD_PROJECTING;
-        factor = 1;
-      }
-      else
-      {
-        mode_ |= MODE_PROJECTING;
-        factor = (d - slowdown_far_)/(slowdown_near_ - slowdown_far_);
-      }
-
-      *vx  -= gx *dp*factor;
-      *vy  -= gy *dp*factor;
-      *vth -= gth*dp*factor;
-    }
-  }
-
-  if(d < repelling_dist_) {
-    mode_ |= MODE_REPELLING;
-    double l_grad_2d = 1/sqrt(gx*gx + gy*gy);
-    double a = (1.0/d - 1.0/repelling_dist_)
-        * (1.0/d - 1.0/repelling_dist_)
-        * 0.5 * repelling_gain_;
-
-    if(a > repelling_gain_max_)
-      a = repelling_gain_max_;
-    *vx -= gx * l_grad_2d * a;
-    *vy -= gy * l_grad_2d * a;
-  }
-
-  return d;
-}
-
-void BaseDistance::compute_distance_keeping(double *vx, double *vy, double *vth)
-{
-
-  // compute last known robot position in odom frame
-  compute_pose2d(base_link_frame_.c_str(), odom_frame_.c_str(), ros::Time(0), &rob_x_, &rob_y_, &rob_th_);
-
-  // collect all relevant obstacle points: from both lasers and blind spots, if given
-  std::vector<Vector2> current_points;
-
-  {
-    // boost::mutex::scoped_lock current_lock(lock);
-    // No need for mutexes as the laser points are a C array
-
-    current_points.reserve((laser_points_[0] ? laser_points_[0]->size() : 0) +
-                           (laser_points_[1] ? laser_points_[1]->size() : 0) +
-                           blind_spots_.size());
-
-    if(laser_points_[0])
-    {
-      std::copy(laser_points_[0]->begin(), laser_points_[0]->end(),
-          std::back_insert_iterator<std::vector<Vector2> >(current_points));
-    }
-    if(laser_points_[1])
-    {
-      std::copy(laser_points_[1]->begin(), laser_points_[1]->end(),
-          std::back_insert_iterator<std::vector<Vector2> >(current_points));
-    }
-    std::copy(blind_spots_.begin(), blind_spots_.end(),
-              std::back_insert_iterator<std::vector<Vector2> >(current_points));
-  }
-
-  mode_ = MODE_FREE;
-
-  // modify velocity vector (if too close it will start braking or backing up)
-  project(current_points, vx, vy, vth);
-
-  // if necessary, do braking (also adjusts the velocity and mode_)
-  brake(current_points, vx, vy, vth);
-
-  vx_last_ = *vx;
-  vy_last_ = *vy;
-  vth_last_ = *vth;
-
-  publishNearestPoint();
-  publishBaseMarker();
-  publishPoints(current_points);
-}
 
 #define LEFT 1
 #define RIGHT 2
@@ -688,4 +375,328 @@ double BaseDistance::distance(std::vector<Vector2> &points, Vector2 *nearest, do
       *nearest = lnearest;
     return ldistance;
   }
+}
+
+
+#define CLAMP(x, min, max) (x < min) ? min : ((x > max) ? max : x)
+
+double BaseDistance::grad(std::vector<Vector2> &points, double *gx, double *gy, double *gth)
+{
+  if(!gx || !gy || !gth)
+    return 0;
+
+  double d0, dx_p, dy_p, dth_p, dx_n, dy_n, dth_n;
+
+  // for very small distances angular velocity of radians per second can be
+  // considered as meters per second? sinX = X for dt -> 0? no idea what's going on here
+  double v_len = sqrt(vx_last_*vx_last_ + vy_last_*vy_last_ + vth_last_*vth_last_);
+
+  // dd -> distance traveled in one time frame d_ with current velocity
+  double dd = CLAMP(v_len*d_*2, 0.005, 0.15);
+
+  // distance to nearest point from current robot pose
+  d0   = distance(points, &nearest_, 0, 0, 0);
+
+  // distance to nearest point from robot pose if robot moved +/- dd in X, Y or Theta in @a d_
+  dx_p  = distance(points, 0,  dd,  0,  0);
+  dx_n  = distance(points, 0, -dd,  0,  0);
+
+  dy_p  = distance(points, 0,  0,  dd,  0);
+  dy_n  = distance(points, 0,  0, -dd,  0);
+
+  dth_p = distance(points, 0,  0,  0,  dd);
+  dth_n = distance(points, 0,  0,  0, -dd);
+
+  *gx  = (dx_p  - dx_n)  / (2.0 * dd);
+  *gy  = (dy_p  - dy_n)  / (2.0 * dd);
+  *gth = (dth_p - dth_n) / (2.0 * dd);
+
+  // compute second derivatives for finding saddle points
+  double g2x = (dx_p  + dx_n - 2*d0) / (dd*dd);
+  double g2y = (dy_p  + dy_n - 2*d0) / (dd*dd);
+  double g2th = (dth_p  + dth_n - 2*d0) / (dd*dd);
+
+  //ROS_DEBUG("ddx=%f, ddy=%f, ddth=%f\n", ddx, ddy, ddth);
+  //ROS_DEBUG("gx: %f (+- %f)  gy: %f (+-%f)  gth: %f (+- %f)\n", *gx, g2x, *gy, g2y, *gth, g2th);
+
+  // "dampen" if second derivative is big
+  double g2_scaledown = 2.0;
+  double gx_damp = (fabs(g2x) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2x);
+  double gy_damp = (fabs(g2y) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2y);
+  double gth_damp = (fabs(g2th) < g2_scaledown) ? 1.0 : g2_scaledown / fabs(g2th);
+
+  *gx = *gx * gx_damp;
+  *gy = *gy * gy_damp;
+  *gth = *gth * gth_damp;
+
+  std_msgs::Float64MultiArray msg;
+  msg.data.resize(7);
+  msg.data[0] = dd;
+
+  msg.data[1] = *gx;
+  msg.data[2] = *gy;
+  msg.data[3] = *gth;
+
+  msg.data[4] = g2x;
+  msg.data[5] = g2y;
+  msg.data[6] = g2th;
+
+  debug_pub_.publish(msg);
+
+  return d0;
+}
+
+
+double BaseDistance::brake(std::vector<Vector2> &points, double *vx, double *vy, double *vth)
+{
+  double factor = 1.5;
+  double d = distance(points, 0, -*vx*d_*factor, -*vy*d_*factor, -*vth*d_*factor);
+  if(d < safety_dist_) { // if we are stuck in the NEXT timestep...
+    mode_ |= MODE_BRAKING;
+    *vx = 0.0;
+    *vy = 0.0;
+    *vth = 0.0;
+  }
+  return d;
+}
+
+
+double BaseDistance::project(std::vector<Vector2> &points, double *vx, double *vy, double *vth)
+{
+  double d, gx, gy, gth, factor = 0;
+  d = grad(points, &gx, &gy, &gth);
+
+  // normalize gradient
+  double l_grad = 1/sqrt(gx*gx + gy*gy + gth*gth);
+  gx*=l_grad;
+  gy*=l_grad;
+  gth*=l_grad;
+
+  if(d < slowdown_far_) {
+    // project (vx,vy,vth) onto (gx,gy,gth)
+    double dp = *vx*gx + *vy*gy + *vth*gth;
+    if(dp > 0) { // we are moving towards the obstacle
+      if(d < slowdown_near_)
+      {
+        mode_ |= MODE_HARD_PROJECTING;
+        factor = 1;
+      }
+      else
+      {
+        mode_ |= MODE_PROJECTING;
+        factor = (d - slowdown_far_)/(slowdown_near_ - slowdown_far_);
+      }
+
+      *vx  -= gx *dp*factor;
+      *vy  -= gy *dp*factor;
+      *vth -= gth*dp*factor;
+    }
+  }
+
+  if(d < repelling_dist_) {
+    mode_ |= MODE_REPELLING;
+    double l_grad_2d = 1/sqrt(gx*gx + gy*gy);
+    double a = (1.0/d - 1.0/repelling_dist_)
+        * (1.0/d - 1.0/repelling_dist_)
+        * 0.5 * repelling_gain_;
+
+    if(a > repelling_gain_max_)
+      a = repelling_gain_max_;
+    *vx -= gx * l_grad_2d * a;
+    *vy -= gy * l_grad_2d * a;
+  }
+
+  return d;
+}
+
+
+void BaseDistance::compute_distance_keeping(double *vx, double *vy, double *vth)
+{
+
+  // compute last known robot position in odom frame
+  compute_pose2d(base_link_frame_.c_str(), odom_frame_.c_str(), ros::Time(0), &rob_x_, &rob_y_, &rob_th_);
+
+  // collect all relevant obstacle points: from both lasers and blind spots, if given
+  std::vector<Vector2> current_points;
+
+  {
+    // boost::mutex::scoped_lock current_lock(lock);
+    // No need for mutexes as the laser points are a C array
+
+    current_points.reserve((laser_points_[0] ? laser_points_[0]->size() : 0) +
+                           (laser_points_[1] ? laser_points_[1]->size() : 0) +
+                           blind_spots_.size());
+
+    if(laser_points_[0])
+    {
+      std::copy(laser_points_[0]->begin(), laser_points_[0]->end(),
+          std::back_insert_iterator<std::vector<Vector2> >(current_points));
+    }
+    if(laser_points_[1])
+    {
+      std::copy(laser_points_[1]->begin(), laser_points_[1]->end(),
+          std::back_insert_iterator<std::vector<Vector2> >(current_points));
+    }
+    std::copy(blind_spots_.begin(), blind_spots_.end(),
+              std::back_insert_iterator<std::vector<Vector2> >(current_points));
+  }
+
+  mode_ = MODE_FREE;
+
+  // modify velocity vector (if too close it will start braking or backing up)
+  project(current_points, vx, vy, vth);
+
+  // if necessary, do braking (also adjusts the velocity and mode_)
+  brake(current_points, vx, vy, vth);
+
+  vx_last_ = *vx;
+  vy_last_ = *vy;
+  vth_last_ = *vth;
+
+  publishNearestPoint();
+  publishBaseMarker();
+  publishPoints(current_points);
+}
+
+
+void BaseDistance::publishLaserMarker(const Vector2 &pt, const std::string &ns, int id)
+{
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = odom_frame_;
+  marker.header.stamp = ros::Time::now();
+  marker.ns = ns;
+  marker.type = visualization_msgs::Marker::CUBE;
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.pose.position.z = 0.55;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+  marker.scale.x = marker_size_;
+  marker.scale.y = marker_size_;
+  marker.scale.z = marker_size_;
+  marker.color.r = 1;
+  marker.color.g = 0;
+  marker.color.b = 0;
+  marker.color.a = 1.0;
+  marker.lifetime = ros::Duration(0.2);
+  marker.id = id;
+  marker.pose.position.x = pt.x;
+  marker.pose.position.y = pt.y;
+  marker.pose.orientation.w = 1.0;
+  marker_pub_.publish(marker);
+}
+
+
+void BaseDistance::publishNearestPoint()
+{
+  // visualize closest point
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = base_link_frame_;
+  marker.header.stamp = ros::Time::now();
+  marker.ns = "nearest_point";
+  marker.id = 0;
+  //marker.type = visualization_msgs::Marker::CUBE;
+  if(mode_ & MODE_REPELLING)
+    marker.type = visualization_msgs::Marker::SPHERE;
+  else
+    marker.type = visualization_msgs::Marker::CUBE;
+
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.pose.position.x = nearest_.x;
+  marker.pose.position.y = nearest_.y;
+  marker.pose.position.z = 0.55;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+  marker.scale.x = marker_size_*2;
+  marker.scale.y = marker_size_*2;
+  marker.scale.z = marker_size_*2;
+
+  switch(mode_ & MODE_PROJECTION_MASK)
+  {
+  case(MODE_FREE):
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    break;
+  case(MODE_PROJECTING):
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    break;
+  case(MODE_HARD_PROJECTING):
+    marker.color.r = 1.0f;
+    marker.color.g = 0.5f;
+    break;
+  case(MODE_BRAKING):
+    marker.color.r = 1.0f;
+    marker.color.g = 0.0f;
+    break;
+  }
+  marker.color.b = 0.0f;
+  marker.color.a = 1.0;
+
+  marker.lifetime = ros::Duration(0.1);
+  marker_pub_.publish(marker);
+}
+
+
+void BaseDistance::publishBaseMarker()
+{
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = base_link_frame_;
+  marker.header.stamp = ros::Time::now();
+  marker.ns = "base_footprint";
+  marker.id = 0;
+  marker.type = visualization_msgs::Marker::CUBE;
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.pose.position.x = (front_ + rear_) * 0.5;
+  marker.pose.position.y = (right_ + left_) * 0.5;
+  marker.pose.position.z = 0.3;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+  marker.scale.x = front_ - rear_;
+  marker.scale.y = right_ - left_;
+  marker.scale.z = 0.6;
+  marker.color.r = 0.5f;
+  marker.color.g = 0.5f;
+  marker.color.b = 1.0f;
+  marker.color.a = 0.5;
+  marker.lifetime = ros::Duration();
+  marker_pub_.publish(marker);
+}
+
+
+void BaseDistance::publishPoints(const std::vector<Vector2> &points)
+{
+  sensor_msgs::PointCloud cloud;
+
+  cloud.points.resize(points.size());
+
+  std::vector<Vector2>::const_iterator src_it;
+  sensor_msgs::PointCloud::_points_type::iterator dest_it;
+
+  cloud.header.stamp = ros::Time::now();
+  cloud.header.frame_id = odom_frame_;
+  for(src_it=points.begin(), dest_it=cloud.points.begin();
+      src_it != points.end();
+      src_it++, dest_it++)
+  {
+    dest_it->x = src_it->x;
+    dest_it->y = src_it->y;
+    dest_it->z = 0.3;
+  }
+
+  // add one dummy point to clear the display
+  if(points.size() == 0)
+  {
+    cloud.points.resize(1);
+    cloud.points[0].x = 0.0;
+    cloud.points[0].y = 0.0;
+    cloud.points[0].z = 0.0;
+  }
+
+  laser_points_pub_.publish(cloud);
 }
