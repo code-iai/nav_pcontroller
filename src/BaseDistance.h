@@ -40,8 +40,9 @@
 #include <sensor_msgs/LaserScan.h>
 
 /**
- * Utility class for providing functionality such as ...
- * More details
+ * Utility class for figuring out if the robot should slow down or move freely based on laser data
+ * If there are points in the laser (lasers) that are closer than safe distance
+ * the robot should start slowing down, completely brake, or even back up.
  */
 
 class BaseDistance {
