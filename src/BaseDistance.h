@@ -27,6 +27,40 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+
+@b This is the BaseDistance utility class for avoiding obstacles!
+It figures out if the robot should slow down or move freely based on laser scan data.
+If there are points in the laser (lasers) that are closer than safe distance
+the robot should start slowing down, completely brake, or even back up.
+
+@section topic ROS topics
+
+Subscribes to (name/type):
+- @b "~laser_1" sensor_msgs/LaserScan: laser scan from first laser
+- @b "~laser_2" sensor_msgs/LaserScan: laser scan from second laser if available
+
+Publishes to (name / type):
+- @b "/visualization_marker" visualization_msgs/Marker : markers for base footprint and laser nearest point
+- @b "~laser_points" sensor_msgs/PointCloud : laser scanner points from combined lasers & interpolated blind spots
+- @b "~debug_channels" std_msgs/Float64MultiArray : debug array for velocity gradient debugging of grad method
+
+@section parameters ROS parameters
+  - @b "odom_frame" (string) : odometry frame, default: "/odom"
+  - @b "base_link_frame" (string) : base frame, default: "/base_link"
+  - @b "n_lasers" (int) : number of lasers on robot's base, default: 2
+  - @b "slowdown_far" (double) : distance from footprint edges to closest obstacle point from when to start slowing, default: 0.30 m
+  - @b "slowdown_near" (double) : distance from footprint edges to closest obstacle point from when to slow aggressively, default: 0.15 m
+  - @b "safety_dist" (double) : distance in meters when to brake when moving with current velocity, default: 0.10 m
+  - @b "repelling_dist" (double) : distance from footprint edges to closest obstacle point from when to start backing up, default: 0.20 m
+  - @b "repelling_gain" (double) : gain for repelling speed, default: 0.5
+  - @b "repelling_gain_max" (double) : maximum repelling speed gain, default: 0.015
+  - @b "complete_blind_spots" (bool) : interpolate the angles where lasers can't see or not, default: true
+  - @b "blind_spot_threshold" (double) : distance from base_link_frame to the end of a blind spot, default: 0.85 m
+  - @b "marker_size" (double) : size of markers in Rviz, default: 0.1 m
+
+*/
+
 #ifndef BASE_DISTANCE_H
 #define BASE_DISTANCE_H
 
@@ -39,11 +73,6 @@
 #include <tf/transform_listener.h>
 #include <sensor_msgs/LaserScan.h>
 
-/**
- * Utility class for figuring out if the robot should slow down or move freely based on laser data
- * If there are points in the laser (lasers) that are closer than safe distance
- * the robot should start slowing down, completely brake, or even back up.
- */
 
 class BaseDistance {
 
@@ -143,7 +172,7 @@ private:
   double tolerance_;
 
   /**
-   * @brief slowdown_near_ Distance from footprint edges to closest obstacle point from when to start slowing
+   * @brief slowdown_far_ Distance from footprint edges to closest obstacle point from when to start slowing
    */
   double slowdown_far_;
 

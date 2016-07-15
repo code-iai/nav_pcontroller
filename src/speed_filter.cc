@@ -28,36 +28,6 @@
  */
 
 
-/**
-
-@mainpage
-
-@htmlinclude manifest.html
-
-<hr>
-
-@section topic ROS topics
-
-Subscribes to (name/type):
-- @b "tf_message" tf/tfMessage: robot's pose in the "map" frame
-- @b "goal" geometry_msgs/PoseStamped : goal for the robot.
-
-Publishes to (name / type):
-- @b "cmd_vel" geometry_msgs/Twist : velocity commands to robot
-- @b "state" nav_robot_actions/MoveBaseState : current planner state (e.g., goal reached, no path)
-
-@section parameters ROS parameters
-  - @b "xy_tolerance" (double) : Goal distance tolerance (how close the robot must be to the goal before stopping), default: 0.05 m
-  - @b "th_tolerance" (double) : Goal rotation tolerance (how close the robot must be to the goal before stopping), default: 0.05 rad
-  - @b "vel_lin_max" (double) : maximum linear velocity, default: 0.2 m/s
-  - @b "vel_ang_max" (double) : maximum angular velocity, default: 0.2 rad/s
-  - @b "acc_lin_max" (double) : maximum linear acceleration, default: 0.1 m/s^2
-  - @b "acc_ang_max" (double) : maximum angular acceleration, default: 0.1 rad/s^2
-  - @b "loop_rate" (int) : rate at which the control loop runs, default: 30 s^-1
-  - @b "p" (double) : P controller value, default: 1.0
-
-*/
-
 #include <unistd.h>
 #include <math.h>
 

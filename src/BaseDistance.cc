@@ -80,25 +80,21 @@ BaseDistance::BaseDistance()
   rob_x_ = rob_y_ = rob_th_ = 0.0;
   vx_last_ = vy_last_ = vth_last_ = 0.0;
 
-  n_.param("marker_size", marker_size_, 0.1);
-  n_.param("safety_dist", safety_dist_, 0.10);
-  n_.param("slowdown_far", slowdown_far_, 0.30);
-  n_.param("slowdown_near", slowdown_near_, 0.15);
-  n_.param("repelling_dist", repelling_dist_, 0.20);
-  n_.param("repelling_gain", repelling_gain_, 0.5);
-  n_.param("repelling_gain_max", repelling_gain_max_, 0.015);
-
-  n_.param<std::string>("odom_frame", odom_frame_, "/odom");
-  n_.param<std::string>("base_link_frame", base_link_frame_, "/base_link");
-
-  ROS_INFO("## safe=%f slow=%f..%f repell=%f repell_gain=%f\n", safety_dist_, slowdown_near_, slowdown_far_, repelling_dist_, repelling_gain_);
-
+  n_.param<std::string>("odom_frame", odom_frame_, "odom");
+  n_.param<std::string>("base_link_frame", base_link_frame_, "base_link");
   n_.param("n_lasers", n_lasers_, 2);
   if(n_lasers_ < 1 || n_lasers_ > 2)
     ROS_FATAL("Only one or two lasers are supported. %d lasers specified.", n_lasers_);
-
+  n_.param("slowdown_far", slowdown_far_, 0.30);
+  n_.param("slowdown_near", slowdown_near_, 0.15);
+  n_.param("safety_dist", safety_dist_, 0.10);
+  n_.param("repelling_dist", repelling_dist_, 0.20);
+  n_.param("repelling_gain", repelling_gain_, 0.5);
+  n_.param("repelling_gain_max", repelling_gain_max_, 0.015);
+  ROS_INFO("## safe=%f slow=%f..%f repell=%f repell_gain=%f\n", safety_dist_, slowdown_near_, slowdown_far_, repelling_dist_, repelling_gain_);
   n_.param("complete_blind_spots", complete_blind_spots_, true);
   n_.param("blind_spot_threshold", blind_spot_threshold_, 0.85);
+  n_.param("marker_size", marker_size_, 0.1);
 
   marker_pub_ = n_.advertise<visualization_msgs::Marker>("/visualization_marker", 0);
   laser_points_pub_ = n_.advertise<sensor_msgs::PointCloud>("laser_points", 0);

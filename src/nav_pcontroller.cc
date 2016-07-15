@@ -29,21 +29,20 @@
 
 /**
 
-@mainpage
+@b This is a P controller for navigation. Yeah, this line is a todo...
 
-@htmlinclude manifest.html
-
-<hr>
-
-@section topic ROS topics
+@section topics ROS topics
 
 Subscribes to (name/type):
-- @b "tf_message" tf/tfMessage: robot's pose in the "map" frame
-- @b "goal" geometry_msgs/PoseStamped : goal for the robot.
+- @b "/tf" tf/tfMessage: robot's pose in the "map" frame
+- @b "~goal" geometry_msgs/PoseStamped : goal for the robot.
 
 Publishes to (name / type):
-- @b "cmd_vel" geometry_msgs/Twist : velocity commands to robot
-- @b "state" nav_robot_actions/MoveBaseState : current planner state (e.g., goal reached, no path)
+- @b "/cmd_vel" geometry_msgs/Twist : velocity commands to robot
+- @b "state" nav_robot_actions/MoveBaseState : current planner state (e.g., goal reached, no path) ??? does it
+
+Actionlib (name / type):
+- @b "~move_base/goal" move_base_msgs/MoveBaseActionGoal : similar to the move_base interface
 
 @section parameters ROS parameters
   - @b "xy_tolerance" (double) : Goal distance tolerance (how close the robot must be to the goal before stopping), default: 0.05 m
@@ -214,8 +213,8 @@ void BasePController::parseParams()
   n_.param<double>("p", p_, 1.2);
   n_.param<bool>("keep_distance", keep_distance_, true);
 
-  n_.param<std::string>("global_frame", global_frame_, "/map");
-  n_.param<std::string>("base_link_frame", base_link_frame_, "/base_link");
+  n_.param<std::string>("global_frame", global_frame_, "map");
+  n_.param<std::string>("base_link_frame", base_link_frame_, "base_link");
 
   //CHANGED
   //  dist_control_.setFootprint(0.42, -0.3075, 0.3075, -0.42, 0.0);
