@@ -14,16 +14,10 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(${PROJECT_NAME} src/nav_pcontroller.cc src/BaseDistance.cc)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
 add_executable(speed_filter src/speed_filter.cc src/BaseDistance.cc)
-
-
-target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-)
-
-target_link_libraries(speed_filter
-  ${catkin_LIBRARIES}
-)
+target_link_libraries(speed_filter ${catkin_LIBRARIES})
 
 
 install(TARGETS ${PROJECT_NAME} speed_filter

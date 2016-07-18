@@ -28,9 +28,6 @@
  */
 
 
-#include <vector>
-#include <math.h>
-
 #include <stdio.h>
 
 #include <algorithm>
@@ -38,14 +35,11 @@
 
 #include <boost/bind.hpp>
 
-#include "ros/ros.h"
-#include <sensor_msgs/LaserScan.h>
-#include <tf/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <std_msgs/Float64MultiArray.h>
 
-#include "BaseDistance.h"
+#include "nav_pcontroller/BaseDistance.h"
 
 /**
  * @todo: avoid unnecessary computation

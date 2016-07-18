@@ -27,41 +27,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef SPEED_FILTER_H
+#define SPEED_FILTER_H
 
-#include "nav_pcontroller/speed_filter.h"
+#include "ros/ros.h"
+#include <geometry_msgs/Twist.h>
 
-void SpeedFilter::input_vel(const geometry_msgs::Twist::ConstPtr& msg)
-{
-  geometry_msgs::Twist t = *msg;
+#include "BaseDistance.h"
 
-  dist_control_.compute_distance_keeping(&(t.linear.x), &(t.linear.y), &(t.angular.z));
-  pub_vel_.publish(t);
-}
+class SpeedFilter {
+private:
+  BaseDistance dist_control_;
 
+  ros::NodeHandle n_;
+  ros::Publisher  pub_vel_;
+  ros::Subscriber sub_vel_;
 
-SpeedFilter::SpeedFilter() : n_("~")
-{
-  sub_vel_ =  n_.subscribe("/input_vel", 1, &SpeedFilter::input_vel, this);
-  pub_vel_ =  n_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+  void input_vel(const geometry_msgs::Twist::ConstPtr& msg);
 
-  //CHANGED
-  //  dist_control_.setFootprint(0.42, -0.3075, 0.3075, -0.42, 0.0);
-  double front, rear, left, right, tolerance;
-  n_.param("footprint/left", left, 0.309);
-  n_.param("footprint/right", right, -0.309);
-  n_.param("footprint/front", front, 0.43);
-  n_.param("footprint/rear", rear, -0.43);
-  n_.param("footprint/tolerance", tolerance, 0.0);
-  dist_control_.setFootprint(front, rear, left, right, tolerance);
-}
+public:
+  SpeedFilter();
+};
 
-int main(int argc, char *argv[])
-{
-  ros::init(argc, argv, "speed_filter");
-
-  SpeedFilter sf;
-
-  ros::spin();
-
-  return 0;
-}
+#endif

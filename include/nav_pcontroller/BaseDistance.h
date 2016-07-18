@@ -64,10 +64,13 @@ Publishes to (name / type):
 #ifndef BASE_DISTANCE_H
 #define BASE_DISTANCE_H
 
-#include <boost/thread.hpp>
-#include <boost/shared_ptr.hpp>
+#include <string>
+#include <vector>
 
 #include <math.h>
+
+#include <boost/thread.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "ros/ros.h"
 #include <tf/transform_listener.h>

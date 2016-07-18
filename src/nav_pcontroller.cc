@@ -27,120 +27,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
-
-@b This is a P controller for navigation. Yeah, this line is a todo...
-
-@section topics ROS topics
-
-Subscribes to (name/type):
-- @b "/tf" tf/tfMessage: robot's pose in the "map" frame
-- @b "~goal" geometry_msgs/PoseStamped : goal for the robot.
-
-Publishes to (name / type):
-- @b "/cmd_vel" geometry_msgs/Twist : velocity commands to robot
-- @b "state" nav_robot_actions/MoveBaseState : current planner state (e.g., goal reached, no path) ??? does it
-
-Actionlib (name / type):
-- @b "~move_base/goal" move_base_msgs/MoveBaseActionGoal : similar to the move_base interface
-
-@section parameters ROS parameters
-  - @b "global_frame" (string) : global map frame, default: "map"
-  - @b "base_link_frame" (string) : base frame, default: "base_link"
-  - @b "xy_tolerance" (double) : Goal distance tolerance (how close the robot must be to the goal before stopping), default: 0.05 m
-  - @b "th_tolerance" (double) : Goal rotation tolerance (how close the robot must be to the goal before stopping), default: 0.05 rad
-  - @b "vel_lin_max" (double) : maximum linear velocity, default: 0.2 m/s
-  - @b "vel_ang_max" (double) : maximum angular velocity, default: 0.2 rad/s
-  - @b "acc_lin_max" (double) : maximum linear acceleration, default: 0.1 m/s^2
-  - @b "acc_ang_max" (double) : maximum angular acceleration, default: 0.1 rad/s^2
-  - @b "loop_rate" (int) : rate at which the control loop runs, default: 30 s^-1
-  - @b "p" (double) : P controller value, default: 1.0
-  - @b "keep_distance" (bool) : use BaseDistance to avoid obstacles or not, default: true
-
-*/
-
-#include <unistd.h>
-#include <math.h>
-#include <stdio.h>
 
 // For min/max
 #include <algorithm>
 
-#include <boost/thread.hpp>
+#include <boost/bind.hpp>
 
-#include <ros/ros.h>
-#include <ros/time.h>
-#include "tf/transform_listener.h"
+#include <math.h>
+#include <stdio.h>
 
-
-// The messages that we'll use
-#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
-#include <std_msgs/String.h>
-#include <sensor_msgs/LaserScan.h>
-#include <move_base_msgs/MoveBaseAction.h>
-#include <actionlib/server/simple_action_server.h>
 
-#include <std_msgs/UInt64.h>
+#include "nav_pcontroller/nav_pcontroller.h"
 
-#include "BaseDistance.h"
-
-class BasePController {
-private:
-
-  double xy_tolerance_, th_tolerance_;
-  ros::Duration fail_timeout_;
-  double fail_velocity_;
-  double vel_ang_max_, vel_lin_max_, acc_ang_max_, acc_lin_max_, p_;
-  int loop_rate_;
-
-  double vx_, vy_, vth_;
-  double x_goal_, y_goal_, th_goal_;
-  double x_now_, y_now_, th_now_;
-  bool goal_set_, keep_distance_;
-
-  std::string global_frame_;
-  std::string base_link_frame_;
-
-  BaseDistance dist_control_;
-
-  ros::NodeHandle n_;
-  tf::TransformListener tf_;
-  ros::Subscriber sub_goal_;
-  ros::Publisher pub_vel_;
-
-  ros::Time low_speed_time_;
-
-  boost::mutex lock;
-
-  void newGoal(const geometry_msgs::PoseStamped &msg);
-  void newGoal(const geometry_msgs::PoseStamped::ConstPtr& msg);
-
-  //  void laserData(const sensor_msgs::LaserScan::ConstPtr& msg);
-
-  void cycle();
-  void stopRobot();
-  void sendVelCmd(double vx, double vy, double vth);
-  bool comparePoses(double x1, double y1, double a1,
-                    double x2, double y2, double a2);
-
-  bool retrieve_pose();
-  double p_control(double x, double p, double limit);
-  double limit_acc(double x, double x_old, double limit);
-  void compute_p_control();
-
-  void parseParams();
-
-  actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> move_base_actionserver_;
-
-  void newMoveBaseGoal();
-  void preemptMoveBaseGoal();
-
-public:
-  BasePController();
-  ~BasePController();
-  void main();
-};
 
 double BasePController::p_control(double x, double p, double limit)
 {
@@ -154,13 +53,6 @@ double BasePController::limit_acc(double x, double x_old, double limit)
   x = std::max(x, x_old - limit);
   return x;
 }
-
-/*
-void BasePController::laserData(const sensor_msgs::LaserScan::ConstPtr& msg)
-{
-  dist_control_.laser_collect(msg);
-}
-*/
 
 BasePController::BasePController()
   : n_("~"),
