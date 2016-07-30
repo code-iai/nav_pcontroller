@@ -29,5 +29,6 @@ install(DIRECTORY include/${PROJECT_NAME}/
 )
 
 install(FILES launch/example.launch
+              launch/pr2_nav_pcontroller.launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
