@@ -90,7 +90,7 @@ BaseDistance::BaseDistance()
   n_.param("blind_spot_threshold", blind_spot_threshold_, 0.85);
   n_.param("marker_size", marker_size_, 0.1);
 
-  marker_pub_ = n_.advertise<visualization_msgs::Marker>("/visualization_marker", 0);
+  marker_pub_ = n_.advertise<visualization_msgs::Marker>("visualization_marker", 0);
   laser_points_pub_ = n_.advertise<sensor_msgs::PointCloud>("laser_points", 0);
   debug_pub_ = n_.advertise<std_msgs::Float64MultiArray>("debug_channels", 0);
 
