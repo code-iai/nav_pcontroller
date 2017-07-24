@@ -1,7 +1,8 @@
 <launch>
   <node pkg="nav_pcontroller" type="nav_pcontroller" name="nav_pcontroller" output="screen">
     <remap from="/cmd_vel" to="/base/cmd_vel_twist"/>
-    <remap from="~laser_1" to="/base_scans"/>
+    <remap from="~laser_1" to="/hokuyo_utm30_front/most_intense"/>
+    <remap from="~laser_2" to="/hokuyo_utm30_back/most_intense"/>
     <remap from="~goal" to="/move_base_simple/goal"/>
     <rosparam>
       global_frame: map
@@ -10,7 +11,7 @@
 
       keep_distance: true                 # avoid obstacles?
 
-      n_lasers: 1                         # number of lasers on robot's base
+      n_lasers: 2                         # number of lasers on robot's base
 
       footprint:                          # measurements of robot's footprint (radii) [m]
         front: 0.61
