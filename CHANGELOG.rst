@@ -2,6 +2,11 @@
 Changelog for package nav_pcontroller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Adapted the maintainer
+* Contributors: Alexis Maldonado
+
 0.1.3 (2017-07-27)
 ------------------
 * Adapt example for the boxy robot using two different laser topics
