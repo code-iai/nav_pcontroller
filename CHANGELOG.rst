@@ -2,8 +2,8 @@
 Changelog for package nav_pcontroller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.4 (2017-07-27)
+------------------
 * Adapted the maintainer
 * Contributors: Alexis Maldonado
 
