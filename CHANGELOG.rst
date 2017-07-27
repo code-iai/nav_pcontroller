@@ -2,8 +2,8 @@
 Changelog for package nav_pcontroller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.3 (2017-07-27)
+------------------
 * Adapt example for the boxy robot using two different laser topics
 * Add a watchdog to the laser topics (important for safety)
 * Update CMakeLists.txt
