@@ -7,7 +7,7 @@
   </description>
 
   <author>Ingo Kresse</author>
-  <maintainer email="winkler@cs.uni-bremen.de">Jan Winkler</maintainer>
+  <maintainer email="amaldo@cs.uni-bremen.de">Alexis Maldonado</maintainer>
 
   <license>BSD</license>
   <url type="website">https://www.github.com/code-iai/nav_pcontroller</url>
