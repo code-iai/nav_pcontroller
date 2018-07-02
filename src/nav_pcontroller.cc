@@ -279,7 +279,8 @@ void BasePController::cycle()
   }
   // Sort of a bad hack. It might be a bad idea to 'unify' angular
   // and linear velocity and just take te maximum.
-  double velocity = max(sqrt(vx_ * vx_+ vy_ * vy_) , vth_);
+  // double velocity = max(sqrt(vx_ * vx_+ vy_ * vy_) , abs(vth_));
+  double velocity = sqrt(vx_ * vx_+ vy_ * vy_);
 
   if( velocity < fail_velocity_ )
   {

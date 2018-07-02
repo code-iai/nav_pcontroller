@@ -311,6 +311,8 @@ bool BaseDistance::interpolateBlindPoints(int n, const Vector2 &pt1, const Vecto
 
 double BaseDistance::distance(std::vector<Vector2> &points, Vector2 *nearest, double dx, double dy, double dth)
 {
+  // TODO: don't take one single closest point, take 10 and average out somehow
+
   Vector2 rnearest(0, 0), lnearest(0, 0);
   double rqdistance=INFINITY, ldistance=INFINITY;
 
